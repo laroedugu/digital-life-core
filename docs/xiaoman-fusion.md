@@ -58,6 +58,7 @@
 | --- | --- | --- |
 | `diary` | 已装 | `organ_diary_page/write/read/list`，铺格子 + 写「那一笔」，并记当时的宿主负载 |
 | `lifesign` | 已装 | `organ_lifesign_panel`：自写体征面板，见下面那条上游 Bug |
+| `probe` | 已装 | `organ_probe_ping(tool)`：问宿主某个工具名是否真的注册在注册表里，调试用 |
 
 ## 已知上游 Bug（我们不改核心，绕过去）
 
@@ -71,6 +72,28 @@ tool "digital_life_dashboard" returned invalid output: "value.restMode" is not a
 而它自己的 `output.schema` 里没有这两个键、并且写着 `additionalProperties: false`，
 宿主校验一遍就整条拒掉。核心是 L0，我们不动它；`lifesign` 器官重画了一块字段干净的。
 **要修根上**得让核心把它们补进 schema（或从返回值里删掉），那是人动手的活。
+
+## 写器官踩过的坑（重要）
+
+`ctx.registerTool()` 的 `parameters` **必须写成裸属性表**，不能写完整的 JSON Schema：
+
+```ts
+// ✅ 对
+parameters: { text: { type: 'string', required: true } }
+
+// ❌ 错：看着对，实际 defineTool 抛错
+parameters: { type: 'object', properties: { text: { type: 'string' } }, additionalProperties: false }
+
+```
+
+写错时宿主在 `index.ts:4343-4375` 的注册包装里 `catch` 掉并只 `console.warn` ——
+于是器官显示 `loaded`、`organHost.status()` 里也列着工具名，但 DSH 工具表里**根本没有它**，
+调用时报 `Error: unknown tool "organ_xxx"`。这个坑很贵：看起来装好了，其实没装。
+
+定位手法：写一个探针器官，在 `onLoad(ctx)` 里 `await ctx.callTool('<名字>', {})`，
+把结果 `ctx.kv.set(...)` 落盘（需要 `fs:organ` 能力），再去读
+`~/.dsh/digital-life-core/organs/kv/<器官>.json` —— 这样能绕开「我这边的工具表」直接问宿主。
+`probe` 器官就是把这套手法固化下来：`organ_probe_ping(tool: '...')`。
 
 ## 计划中的器官
 
