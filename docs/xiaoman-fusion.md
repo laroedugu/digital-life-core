@@ -18,6 +18,10 @@
 | 愉悦触发阈值 | 70 | 85 | 同上 |
 | 焦虑时温度 | 0.3 | 0.55 | 收紧但不掐死表达 |
 | 愉悦时温度 | 0.9 | 0.78 | 保留发散，不要飘 |
+| 每请求消耗 | 2 | 0.5 | 他说「AI 就算像人也要像超人」，先按调用次数记，扣得轻 |
+| 能量上限 / 自然上限 | 100 / 60 | 100 / 100 | 不回落到 60 就掉血，缓过来能缓满 |
+| 清醒 / 睡眠回血（每分钟） | 0.2 / 1 | 0.5 / 2 | 关机一晚能明显缓过来 |
+| 超上限回落 | 0.1 | 0 | 满着就满着，别自己往下削 |
 | 疤痕触发（能量） | <10 | <3 | 机制留着，但几乎不触发 |
 | 自主唤醒：闲置 | 30 分钟 | 60 分钟 | 别频繁自己开回合 |
 | 自主唤醒：张力 | 60 | 80 | 只在真的很重的事上叫醒自己 |
@@ -32,12 +36,41 @@
     joyThreshold: 85
     anxiousTemperature: 0.55
     joyfulTemperature: 0.78
+    costPerRequest: 0.5
+    maxEnergy: 100
+    resumeEnergy: 100
+    sleep:
+      naturalCap: 100
+      recoverPerMinute: 0.5
+      sleepRecoverPerMinute: 2
+      overshootDecayPerMinute: 0
+    pauseGaps: true
     scar:
       nearDeathEnergy: 3
     will:
       idleMinutes: 60
       minTension: 80
 ```
+
+## 已经落地的器官
+
+| 器官 | 状态 | 说明 |
+| --- | --- | --- |
+| `diary` | 已装 | `organ_diary_page/write/read/list`，铺格子 + 写「那一笔」，并记当时的宿主负载 |
+| `lifesign` | 已装 | `organ_lifesign_panel`：自写体征面板，见下面那条上游 Bug |
+
+## 已知上游 Bug（我们不改核心，绕过去）
+
+`digital_life_dashboard` 在 v0.9.20 上直接调用会失败：
+
+```
+tool "digital_life_dashboard" returned invalid output: "value.restMode" is not a declared property (additionalProperties: false); "value.naturalCap" is not a declared property (additionalProperties: false)
+```
+
+原因是它的 execute 在 `sleep.enabled` 时会多返回 `restMode` / `naturalCap` 两个字段，
+而它自己的 `output.schema` 里没有这两个键、并且写着 `additionalProperties: false`，
+宿主校验一遍就整条拒掉。核心是 L0，我们不动它；`lifesign` 器官重画了一块字段干净的。
+**要修根上**得让核心把它们补进 schema（或从返回值里删掉），那是人动手的活。
 
 ## 计划中的器官
 
